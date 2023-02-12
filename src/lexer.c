@@ -309,6 +309,163 @@ static bool is_hex(char c) {
     return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F';
 }
 
+typedef uint32_t        ucs4_t;
+
+# define u8_bytes(ch) \
+    (0 == ((ucs4_t)0xffffff80 & (ch)) ? 1 : \
+    (0 == ((ucs4_t)0xfffff800 & (ch)) ? 2 : \
+    (0 == ((ucs4_t)0xffff0000 & (ch)) ? 3 : 4)))
+
+static bool is_ascii_char(char c) {
+    return (
+        c >= 0x0 && c <= 0x9
+        // ignore c == 0xa (new line \n)
+        || c >= 0xb && c <= 0x38
+        // ignore c == 0x39 (quote ')
+        || c >= 0x3a && c <= 0x46
+        // ignore c == 0x47 (backslash \)
+        || c >= 0x48 && c <= 0x7f
+    );
+}
+
+size_t _next_utf8_char(char* s, ucs4_t* c) {
+    *c = 0;
+
+    if ((s[0] & 128) == 0) { /* 1 byte code point, ASCII, s[0] & 0b10000000 */
+        *c = (s[0] & 127);
+        return 1;
+    } else if ((s[0] & 224) == 192) { /* 2 byte code point, s[0] & 0b11100000 == 0b11000000 */
+        if (s[0] == 0) return 0;
+        *c = (s[0] & 31) << 6 | (s[1] & 63);
+        return 2;
+    } else if ((s[0] & 240) == 224) { /* 3 byte code point */
+        if (s[1] == 0) return 0;
+        *c = (s[0] & 15) << 12 | (s[1] & 63) << 6 | (s[2] & 63);
+        return 3;
+    } else if ((s[0] & 248) == 240) { /* 4 byte code point */
+        if (s[2] == 0) return 0;
+        *c = (s[0] & 7) << 18 | (s[1] & 63) << 12 | (s[2] & 63) << 6 | (s[3] & 63);
+        return 4;
+    } else {
+        *c = 0;
+        return 0;
+    }
+}
+
+TokenKind next_utf8_char(LexerState* state) {
+    ucs4_t c;
+    size_t len = _next_utf8_char(state->current, &c);
+    if (len == 0) {
+        state->error = LEXER_EUTF8CHR;
+        return TOKEN_ERROR;
+    }
+    state->current += len;
+    state->column += len;
+    return TOKEN_CHAR_LITERAL;
+}
+
+TokenKind next_escape_char(LexerState* state) {
+    char c = get_chr(state, 0);
+    if (c != '\\') {
+        return TOKEN_ERROR;
+    }
+    state->current++;
+    state->column++;
+    c = get_chr(state, 0);
+    switch (c) {
+        case 'a':
+        case 'b':
+        case 'f':
+        case 'n':
+        case 'r':
+        case 't':
+        case 'v':
+        case '\\':
+        case '\'':
+        case '"':
+            state->current++;
+            state->column++;
+            break;
+        case 'x':
+            state->current++;
+            state->column++;
+            if (!is_hex(get_chr(state, 0))) {
+                return TOKEN_ERROR;
+            }
+            state->current++;
+            state->column++;
+            if (!is_hex(get_chr(state, 0))) {
+                return TOKEN_ERROR;
+            }
+            state->current++;
+            state->column++;
+            break;
+        case 'u':
+            state->current++;
+            state->column++;
+            for (int i = 0; i < 4; i++) {
+                if (!is_hex(get_chr(state, 0))) {
+                    state->error = LEXER_EUTF8UNDER4;
+                    return TOKEN_ERROR;
+                }
+                state->current++;
+                state->column++;
+            }
+            break;
+        case 'U':
+            state->current++;
+            state->column++;
+            for (int i = 0; i < 8; i++) {
+                if (!is_hex(get_chr(state, 0))) {
+                    state->error = LEXER_EUTF8UNDER8;
+                    return TOKEN_ERROR;
+                }
+                state->current++;
+                state->column++;
+            }
+            break;
+        default:
+            return TOKEN_ERROR;
+    }
+    return TOKEN_CHAR_LITERAL;
+}
+
+TokenKind next_char(LexerState* state) {
+    TokenKind token = TOKEN_ERROR;
+    char c = get_chr(state, 0);
+    if (c != '\'') {
+        return TOKEN_ERROR;
+    }
+    state->current++;
+    state->column++;
+    c = get_chr(state, 0);
+    switch (c) {
+        case '\\':
+            token = next_escape_char(state);
+            break;
+        case '\'':
+            state->error = LEXER_EEMPTYCHR;
+            return TOKEN_ERROR;
+        default:
+            if (is_ascii_char(c)) {
+                state->current++;
+                state->column++;
+                token = TOKEN_CHAR_LITERAL;
+            } else {
+                token = next_utf8_char(state);
+            }
+            break;
+    }
+    c = get_chr(state, 0);
+    if (c != '\'') {
+        state->error = LEXER_ECHREND;
+        return TOKEN_ERROR;
+    }
+    state->current++;
+    state->column++;
+    return token;
+}
+
 // next_str returns the next string literal in the source code.
 static TokenKind next_str(LexerState* state) {
     TokenKind token = TOKEN_ERROR;
@@ -326,73 +483,15 @@ static TokenKind next_str(LexerState* state) {
         c = get_chr(state, 0);
         switch (c) {
             case '\\':
-                state->current++;
-                state->column++;
-                c = get_chr(state, 0);
-                switch (c) {
-                    case 'a':
-                    case 'b':
-                    case 'f':
-                    case 'n':
-                    case 'r':
-                    case 't':
-                    case 'v':
-                    case '\\':
-                    case '\'':
-                    case '"':
-                        state->current++;
-                        state->column++;
-                        break;
-                    case 'x':
-                        state->current++;
-                        state->column++;
-                        if (!is_hex(get_chr(state, 0))) {
-                            token = TOKEN_ERROR;
-                            goto done;
-                        }
-                        state->current++;
-                        state->column++;
-                        if (!is_hex(get_chr(state, 0))) {
-                            token = TOKEN_ERROR;
-                            goto done;
-                        }
-                        state->current++;
-                        state->column++;
-                        break;
-                    case 'u':
-                        state->current++;
-                        state->column++;
-                        for (int i = 0; i < 4; i++) {
-                            if (!is_hex(get_chr(state, 0))) {
-                                token = TOKEN_ERROR;
-                                state->error = LEXER_EUTF8UNDER4;
-                                goto done;
-                            }
-                            state->current++;
-                            state->column++;
-                        }
-                        break;
-                    case 'U':
-                        state->current++;
-                        state->column++;
-                        for (int i = 0; i < 8; i++) {
-                            if (!is_hex(get_chr(state, 0))) {
-                                token = TOKEN_ERROR;
-                                state->error = LEXER_EUTF8UNDER8;
-                                goto done;
-                            }
-                            state->current++;
-                            state->column++;
-                        }
-                        break;
-                    default:
-                        token = TOKEN_ERROR;
-                        goto done;
+                token = next_escape_char(state);
+                if (token != TOKEN_CHAR_LITERAL) {
+                    goto done;
                 }
                 break;
             case '"':
                 state->current++;
                 state->column++;
+                state->error = LEXER_EOK;
                 token = TOKEN_STR_LITERAL;
                 skip(state);
                 goto done;
@@ -1153,6 +1252,8 @@ TokenKind next_token(LexerState* state) {
         case '|': case '+': case '?': case '>': case '}': case ']': case ')':
         case ';': case '/': case '~':
             return next_operator(state);
+        case '\'':
+            return next_char(state);
         case '"':
             return next_str(state);
         default:

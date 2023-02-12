@@ -37,6 +37,8 @@ typedef enum TokenKind {
     // it reaches the end of the file.
     TOKEN_EOF,
 
+    // 'a', '你', '\n'
+    TOKEN_CHAR_LITERAL,
     // "Hello, world!"
     TOKEN_STR_LITERAL,
     // 42, 0x2A, 0b101010, 0o42
@@ -148,8 +150,13 @@ typedef enum LexerError {
     LEXER_EBINCHR,
     LEXER_EOCTCHR,
     LEXER_EHEXCHR,
+    LEXER_EUTF8CHR,
     LEXER_EUTF8UNDER8,
     LEXER_EUTF8UNDER4,
+    LEXER_EEMPTYCHR,
+    LEXER_EASCIICHR,
+    LEXER_ECHREND,
+    LEXER_EESCAPE,
     LEXER_EMULTILINESTR,
 } LexerError;
 
@@ -183,6 +190,7 @@ static const char* get_tok_name(TokenKind token) {
     "TOKEN_ERROR",
     "TOKEN_EOF",
 
+    "TOKEN_CHAR_LITERAL",
     "TOKEN_STR_LITERAL",
     "TOKEN_INT_LITERAL",
     "TOKEN_FLOAT_LITERAL",

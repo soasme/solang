@@ -7,11 +7,6 @@
 #include <assert.h>
 #include "lexer.h"
 
-// get_tok_name returns the name of the given token.
-static inline char* get_tok_name(TokenKind token) {
-    return TokenName[token];
-}
-
 // to_string returns a string representation of the given parser state.
 // This is used for debugging.
 static char* to_string(LexerState* state) {
@@ -192,51 +187,6 @@ static TokenKind next_hex_int(LexerState* state) {
     return TOKEN_INT_LITERAL;
 }
 
-// next_hex returns the next hex number.
-static TokenKind next_hex(LexerState* state) {
-    TokenKind token = next_hex_int(state);
-    if (token != TOKEN_INT_LITERAL) {
-        return token;
-    }
-
-    bool dot = false;
-    bool sci_note = false;
-
-    char c = get_chr(state, 0);
-
-    if (c == '.') {
-        dot = true;
-        state->current++;
-        state->column++;
-
-        token = next_hex_int(state);
-        if (token != TOKEN_INT_LITERAL) {
-            return token;
-        }
-    }
-
-    c = get_chr(state, 0);
-
-    if (c == 'p' || c == 'P') {
-        sci_note = true;
-        state->current++;
-        state->column++;
-
-        c = get_chr(state, 0);
-        if (c == '+' || c == '-') {
-            state->current++;
-            state->column++;
-        }
-
-        token = next_hex_int(state);
-        if (token != TOKEN_INT_LITERAL) {
-            return token;
-        }
-    }
-
-    return dot || sci_note ? TOKEN_FLOAT_LITERAL : TOKEN_INT_LITERAL;
-}
-
 // next_dec_int returns the next decimal integer.
 static TokenKind next_dec_int(LexerState* state) {
     char c = get_chr(state, 0);
@@ -340,7 +290,7 @@ static TokenKind next_num(LexerState* state) {
             case 'X':
                 state->current += 2;
                 state->column += 2;
-                token = next_hex(state);
+                token = next_hex_int(state);
                 skip(state);
                 return token;
             default:
@@ -415,6 +365,7 @@ static TokenKind next_str(LexerState* state) {
                         for (int i = 0; i < 4; i++) {
                             if (!is_hex(get_chr(state, 0))) {
                                 token = TOKEN_ERROR;
+                                state->error = LEXER_EUTF8UNDER4;
                                 goto done;
                             }
                             state->current++;
@@ -427,6 +378,7 @@ static TokenKind next_str(LexerState* state) {
                         for (int i = 0; i < 8; i++) {
                             if (!is_hex(get_chr(state, 0))) {
                                 token = TOKEN_ERROR;
+                                state->error = LEXER_EUTF8UNDER8;
                                 goto done;
                             }
                             state->current++;
@@ -446,6 +398,7 @@ static TokenKind next_str(LexerState* state) {
                 goto done;
             case '\n':
                 token = TOKEN_ERROR;
+                state->error = LEXER_EMULTILINESTR;
                 goto done;
             default:
                 state->current++;
@@ -851,6 +804,7 @@ static TokenKind next_keyword(LexerState* state) {
 static TokenKind next_identifier(LexerState* state) {
     // [A-Za-z_][A-Za-z0-9_]* skip 
     char c = get_chr(state, 0);
+
     if (isalpha(c) || c == '_') {
         state->current++;
         state->column++;
@@ -858,10 +812,13 @@ static TokenKind next_identifier(LexerState* state) {
             state->current++;
             state->column++;
         }
+        skip(state);
         return TOKEN_IDENTIFIER;
+    } else {
+        state->error = LEXER_EINVALIDIDENT;
+        return TOKEN_ERROR;
     }
-    skip(state);
-    return TOKEN_ERROR;
+
 }
 
 // next_operator returns the next operator in the source code.
@@ -1169,7 +1126,7 @@ done:
 }
 
 // next_token returns the next token in the stream.
-static TokenKind next_token(LexerState* state) {
+TokenKind next_token(LexerState* state) {
     char c = get_chr(state, 0);
     TokenKind token = TOKEN_ERROR;
     switch (c) {
@@ -1199,60 +1156,7 @@ static TokenKind next_token(LexerState* state) {
         case '"':
             return next_str(state);
         default:
+            state->error = LEXER_EINVALIDCHAR;
             return TOKEN_ERROR;
     }
 }
-
-
-#ifdef LEXER_TEST
-int main(int argc, char **argv) {
-    assert(strcmp(get_tok_name(TOKEN_ERROR), "TOKEN_ERROR") == 0);
-
-#define LEXER_TEST_PASS(input, expected, expected_pos) {\
-    LexerState s = {\
-        .source = (input), \
-        .line = 1, \
-        .column = 1, \
-        .error = LEXER_EOK, \
-    }; \
-    s.current = s.source; \
-    assert(next_token(&s) == (expected)); \
-    assert(s.current == s.source + (expected_pos));\
-}
-
-#define LEXER_TEST_FAILED(input, expected_error, expected_pos) {\
-    LexerState s = {\
-        .source = (input), \
-        .line = 1, \
-        .column = 1, \
-        .error = LEXER_EOK, \
-    }; \
-    s.current = s.source; \
-    assert(next_token(&s) == TOKEN_ERROR); \
-    assert(s.error == (expected_error)); \
-    assert(s.current == s.source + (expected_pos));\
-}
-
-    LEXER_TEST_PASS("", TOKEN_EOF, 0);
-    LEXER_TEST_PASS(" \t\r\n", TOKEN_EOF, 4);
-    LEXER_TEST_PASS("# comment", TOKEN_EOF, 9);
-    LEXER_TEST_PASS("# comment\n", TOKEN_EOF, 10);
-    LEXER_TEST_PASS("42", TOKEN_INT_LITERAL, 2);
-    LEXER_TEST_PASS("42   ", TOKEN_INT_LITERAL, 5);
-    LEXER_TEST_PASS("0b01001", TOKEN_INT_LITERAL, 7);
-    LEXER_TEST_FAILED("0b010012", LEXER_EBINCHR, 7);
-    LEXER_TEST_FAILED("0b201001", LEXER_EBINCHR, 2);
-    LEXER_TEST_PASS("0o777", TOKEN_INT_LITERAL, 5);
-    LEXER_TEST_FAILED("0o7778", LEXER_EOCTCHR, 5);
-    LEXER_TEST_PASS("0x000A", TOKEN_INT_LITERAL, 6);
-    LEXER_TEST_PASS("\"你好世界\"", TOKEN_STR_LITERAL, 6);
-
-    return 0;
-}
-#endif
-
-#ifdef LEXER_EXAMPLE
-int main(int argc, char **argv) {
-    return 0;
-}
-#endif

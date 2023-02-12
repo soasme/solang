@@ -38,7 +38,7 @@ typedef enum TokenKind {
     TOKEN_EOF,
 
     // "Hello, world!"
-    TOKEN_STRING_LITERAL,
+    TOKEN_STR_LITERAL,
     // 42, 0x2A, 0b101010, 0o42
     TOKEN_INT_LITERAL,
     // 3.14, 1.0e-10
@@ -141,13 +141,49 @@ typedef enum TokenKind {
     TOKEN_WHILE,
 } TokenKind;
 
-// TokenName is a string representation of each token
-// kind. It is used for debugging.
-char* TokenName[] = {
+typedef enum LexerError {
+    LEXER_EOK,
+    LEXER_EINVALIDCHAR,
+    LEXER_EINVALIDIDENT,
+    LEXER_EBINCHR,
+    LEXER_EOCTCHR,
+    LEXER_EHEXCHR,
+    LEXER_EUTF8UNDER8,
+    LEXER_EUTF8UNDER4,
+    LEXER_EMULTILINESTR,
+} LexerError;
+
+// LexerState is the state of the tokenizer.
+// It contains the state of the source code and
+// the current position in the source code.
+// It can also be used to keep track of the current line
+// and column.
+// The tokenizer state avoids having global variables.
+typedef struct LexerState {
+    // The source code.
+    char*  source;
+    // The current position in the source code.
+    char*  current;
+    // The current line (1-based).
+    int    line;
+    // The current column (1-based).
+    int    column;
+    // The error.
+    LexerError error;
+} LexerState;
+
+// next_token returns the next token in the stream.
+TokenKind next_token(LexerState* state);
+
+// get_tok_name returns the name of the given token.
+static const char* get_tok_name(TokenKind token) {
+    // TokenName is a string representation of each token
+    // kind. It is used for debugging.
+    static const char* TokenName[] = {
     "TOKEN_ERROR",
     "TOKEN_EOF",
 
-    "TOKEN_STRING_LITERAL",
+    "TOKEN_STR_LITERAL",
     "TOKEN_INT_LITERAL",
     "TOKEN_FLOAT_LITERAL",
     "TOKEN_IDENTIFIER",
@@ -223,33 +259,8 @@ char* TokenName[] = {
     "TOKEN_TRY",
     "TOKEN_VAR",
     "TOKEN_WHILE",
-};
-
-typedef enum LexerError {
-    LEXER_EOK,
-    LEXER_EBINCHR,
-    LEXER_EOCTCHR,
-    LEXER_EHEXCHR,
-} LexerError;
-
-// LexerState is the state of the tokenizer.
-// It contains the state of the source code and
-// the current position in the source code.
-// It can also be used to keep track of the current line
-// and column.
-// The tokenizer state avoids having global variables.
-typedef struct LexerState {
-    // The source code.
-    char*  source;
-    // The current position in the source code.
-    char*  current;
-    // The current line (1-based).
-    int    line;
-    // The current column (1-based).
-    int    column;
-    // The error.
-    LexerError error;
-} LexerState;
-
+    };
+    return TokenName[token];
+}
 
 #endif

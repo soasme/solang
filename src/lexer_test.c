@@ -4,25 +4,16 @@
 #include "lexer.h"
 
 #define LEXER_TEST_PASS(input, expected, expected_pos) {\
-    LexerState s = {\
-        .source = (input), \
-        .line = 1, \
-        .column = 1, \
-        .error = LEXER_EOK, \
-    }; \
+    LexerState s = {0};\
+    init_lexer_state(&s, (input)); \
     s.current = s.source; \
     assert(next_token(&s) == (expected)); \
     assert(s.current == s.source + (expected_pos));\
 }
 
 #define LEXER_TEST_FAILED(input, expected_error, expected_pos) {\
-    LexerState s = {\
-        .source = (input), \
-        .line = 1, \
-        .column = 1, \
-        .error = LEXER_EOK, \
-    }; \
-    s.current = s.source; \
+    LexerState s = {0};\
+    init_lexer_state(&s, (input)); \
     assert(next_token(&s) == TOKEN_ERROR); \
     assert(s.error == (expected_error)); \
     assert(s.current == s.source + (expected_pos));\
@@ -46,6 +37,7 @@ int main(int argc, char **argv) {
     LEXER_TEST_PASS("42.0E+42", TOKEN_FLOAT_LITERAL, 8);
     LEXER_TEST_PASS("42.0E-42", TOKEN_FLOAT_LITERAL, 8);
     LEXER_TEST_PASS("0b01001", TOKEN_INT_LITERAL, 7);
+    LEXER_TEST_PASS("0b010_010", TOKEN_INT_LITERAL, 9);
     LEXER_TEST_FAILED("0b010012", LEXER_EBINCHR, 7);
     LEXER_TEST_FAILED("0b201001", LEXER_EBINCHR, 2);
     LEXER_TEST_PASS("0o777", TOKEN_INT_LITERAL, 5);

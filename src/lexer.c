@@ -1224,6 +1224,14 @@ done:
     return token;
 }
 
+void init_lexer_state(LexerState* state, const char* source) {
+    state->source = source;
+    state->current = source;
+    state->line = 1;
+    state->column = 1;
+    state->error = LEXER_EOK;
+}
+
 // next_token returns the next token in the stream.
 TokenKind next_token(LexerState* state) {
     char c = get_chr(state, 0);

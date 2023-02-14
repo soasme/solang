@@ -168,9 +168,9 @@ typedef enum LexerError {
 // The tokenizer state avoids having global variables.
 typedef struct LexerState {
     // The source code.
-    char*  source;
+    const char*  source;
     // The current position in the source code.
-    char*  current;
+    const char*  current;
     // The current line (1-based).
     int    line;
     // The current column (1-based).
@@ -178,6 +178,9 @@ typedef struct LexerState {
     // The error.
     LexerError error;
 } LexerState;
+
+// init_lexer_state initializes the lexer state.
+void init_lexer_state(LexerState* state, const char* source);
 
 // next_token returns the next token in the stream.
 TokenKind next_token(LexerState* state);

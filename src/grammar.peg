@@ -11,13 +11,16 @@
 #define PCC_FREE(auxil, ptr) ParserState_Free((auxil), (ptr))
 }
 
-prog <- _ prog_decl+
-prog_decl <- decl _
+prog <- _ import_decl* _ top_decl+
+import_decl <- IMPORT _ string_lit ~{
+    ParserState_Raise((auxil), PARSER_ERR_NOTIMPORTMOD, Range_New($0s, $0e));
+} _ ident?
+top_decl <- decl _
 decl <- (const_decl ) 
 const_decl <- CONST _ ident ~{
     ParserState_Raise((auxil), PARSER_ERR_NOTCONST, Range_New($0s, $0e));
 } _ EQ _ expr
-ident <- L (L / D)*
+ident <- !keywords L (L / D)*
 expr <- logical_or
 logical_or <- logical_or _b PIPE2 _l logical_and
             / logical_and
@@ -30,7 +33,7 @@ addition <- addition _b addition_op  _l multiplication
 multiplication <- multiplication _b multiplication_op _l unary
                 / unary
 unary <- unary_op* primary
-primary <- int_lit / LPAREN _ expr _ RPAREN
+primary <- int_lit / char_lit / string_lit / LPAREN _ expr _ RPAREN
 int_lit <- bin_lit / oct_lit / hex_lit / dec_lit
 
 comparison_op <- "==" / "!=" / "<=" / "<" !("<" / "-") / ">=" / ">" !">"
@@ -70,6 +73,15 @@ dec_digit <- [0-9]
 dec_digits <- dec_digit (UNDERSCORE? dec_digit)*
 dec_lit <- ZERO / [1-9] (UNDERSCORE? dec_digits)?
 
+char_lit <- '\'' (!'\'' char)* '\''
+string_lit <- '"' (!'"' char)* '"'
+char <- escaped_chr / xhex2_chr / uhex4_chr / uhex8_chr / unicode_chr
+escaped_chr <- '\\' [abfnrtv"\\]
+unicode_chr <- !'\x0a' .
+xhex2_chr <- "\\x" hex_digit hex_digit
+uhex4_chr <- "\\u" hex_digit hex_digit hex_digit hex_digit
+uhex8_chr <- "\\U" hex_digit hex_digit hex_digit hex_digit hex_digit hex_digit hex_digit hex_digit
+
 AMPERSAND2 <- "&&"
 ASTERISKSLASH <- "*/"
 EQ <- "=" !"="
@@ -89,4 +101,6 @@ ZEROX <- "0x" / "0X"
 L <- [a-zA-Z_]
 D <- [0-9]
 
+keywords <- CONST / IMPORT
 CONST <- "const" !(L/D)
+IMPORT <- "import" !(L/D)

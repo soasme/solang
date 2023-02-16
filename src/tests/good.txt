@@ -1,3 +1,14 @@
+import "string" str
+
+const greet = "Hello, World!"
+const greet2 = str.lower("Hello, World!")
+const greet3 = "Hello,\u0020World!"
+const greet4 = "Hello,\U00000020World!"
+const greet5 = 'H'
+const greet6 = '\u0020'
+const greet7 = '\U00000020'
+const greet8 = '\x20'
+
 const hexlit = 0x8000_ff00
 const intlit = 424_242_424
 const octlit = 0o_755
@@ -23,4 +34,3 @@ const ponder2 = 40 + 3 > 42 && 43 - 3 < 42
 const ponder3 = 43 >= 42 || 42 <= 42 && 40 <= 42
 const ponder4 = -42 != 42
 const ponder5 = (40 + 2) == 42
-

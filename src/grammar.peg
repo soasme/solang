@@ -1,5 +1,4 @@
 %prefix "soc"
-%value "AstNode *"
 %auxil "ParserState *"
 %header {
 #include "parser.h"
@@ -12,54 +11,82 @@
 #define PCC_FREE(auxil, ptr) ParserState_Free((auxil), (ptr))
 }
 
+prog <- _ prog_decl+
+prog_decl <- decl _
+decl <- (const_decl ) 
+const_decl <- CONST _ ident ~{
+    ParserState_Raise((auxil), PARSER_ERR_NOTCONST, Range_New($0s, $0e));
+} _ EQ _ expr
+ident <- L (L / D)*
+expr <- logical_or
+logical_or <- logical_or _b PIPE2 _l logical_and
+            / logical_and
+logical_and <- logical_and _b AMPERSAND2 _l comparison
+             / comparison
+comparison <- comparison _b comparison_op _l addition
+            / addition
+addition <- addition _b addition_op  _l multiplication
+          / multiplication
+multiplication <- multiplication _b multiplication_op _l unary
+                / unary
+unary <- unary_op* primary
+primary <- int_lit / LPAREN _ expr _ RPAREN
 int_lit <- bin_lit / oct_lit / hex_lit / dec_lit
 
-# comment <- line_comment / block_comment
-# line_comment <- SLASH2 (!NEWLINE .)* (NEWLINE / !.)
-# block_comment <- SLASHASTERISK (!ASTERISKSLASH .)* ASTERISKSLASH
+comparison_op <- "==" / "!=" / "<=" / "<" !("<" / "-") / ">=" / ">" !">"
+addition_op <- "+" !"+" / "-" !"-" / "|" !"|" / "^"
+multiplication_op <- "*" / "/" !"*" / "%" / "<<" / ">>" / "&^" / "&" !"&"
+unary_op <- "+" / "-" / "!" / "^" / "*" / "&" / "<-"
 
-# NEWLINE <- '\n'
-# ASTERISKSLASH <- "*/"
-# SLASH2 <- "//"
-# SLASHASTERISK <- "/*"
+comment <- line_comment / block_comment
+line_comment <- SLASH2 (!NEWLINE .)* (NEWLINE / !.)
+block_comment <- SLASHASTERISK (!ASTERISKSLASH .)* ASTERISKSLASH
+_b <- (SPACE / TAB / block_comment)+
+_l <- (SPACE / TAB / comment)*
+_ <- (SPACE / TAB / NEWLINE / comment)*
+
+bin_digit <- [0-1]
+bin_digits <- bin_digit (UNDERSCORE? bin_digit)*
+bin_lit <-
+  ZEROB (UNDERSCORE? bin_digits) ~{
+    ParserState_Raise((auxil), PARSER_ERR_NOTBIN, Range_New($0s, $0e));
+  }
+
+oct_digit <- [0-7]
+oct_digits <- oct_digit (UNDERSCORE? oct_digit)*
+oct_lit <-
+  ZEROO (UNDERSCORE? oct_digits) ~{
+    ParserState_Raise((auxil), PARSER_ERR_NOTOCT, Range_New($0s, $0e));
+  }
+
+hex_digit <- [0-9a-fA-F]
+hex_digits <- hex_digit (UNDERSCORE? hex_digit)*
+hex_lit <-
+  ZEROX (UNDERSCORE? hex_digits) ~{
+    ParserState_Raise((auxil), PARSER_ERR_NOTHEX, Range_New($0s, $0e));
+  }
+
+dec_digit <- [0-9]
+dec_digits <- dec_digit (UNDERSCORE? dec_digit)*
+dec_lit <- ZERO / [1-9] (UNDERSCORE? dec_digits)?
+
+AMPERSAND2 <- "&&"
+ASTERISKSLASH <- "*/"
+EQ <- "=" !"="
+LPAREN <- "("
+NEWLINE <- '\n'
+PIPE2 <- "||"
+RPAREN <- ")"
+SLASH2 <- "//"
+SLASHASTERISK <- "/*"
+SPACE <- ' '
+TAB <- '\t'
 UNDERSCORE <- "_"
 ZERO <- "0"
 ZEROB <- "0b" / "0B"
 ZEROO <- "0o" / "0O"
 ZEROX <- "0x" / "0X"
+L <- [a-zA-Z_]
+D <- [0-9]
 
-bin_digit <- [0-1]
-bin_digits <- bin_digit (UNDERSCORE? bin_digit)*
-bin_lit <-
-  ZEROB (
-    UNDERSCORE? bin_digits
-    / {
-      printf("SYNERR_INVALID_BIN_LIT");
-      exit(1);
-    }
-  )
-
-oct_digit <- [0-7]
-oct_digits <- oct_digit (UNDERSCORE? oct_digit)*
-oct_lit <-
-  ZEROO (
-    UNDERSCORE? oct_digits
-    / {
-      printf("SYNERR_INVALID_OCT_LIT");
-      exit(1);
-    }
-  )
-
-hex_digit <- [0-9a-fA-F]
-hex_digits <- hex_digit (UNDERSCORE? hex_digit)*
-hex_lit <-
-  ZEROX (
-    UNDERSCORE? hex_digits
-    / {
-      ParserState_Raise((auxil), PARSER_ERR_NOTHEX, Range_New($0s, $0e));
-    }
-  )
-
-dec_digit <- [0-9]
-dec_digits <- dec_digit (UNDERSCORE? dec_digit)*
-dec_lit <- ZERO / [1-9] (UNDERSCORE? dec_digits)?
+CONST <- "const" !(L/D)

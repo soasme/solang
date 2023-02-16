@@ -1,0 +1,26 @@
+const hexlit = 0x8000_ff00
+const intlit = 424_242_424
+const octlit = 0o_755
+const octlit2 = 0o755
+const binlit = 0b_1010_1010
+const binlit2 = 0b10101010
+
+const answer = 40 + 2
+const answer2 = 20 + 30 - 10 + 2
+const answer3 = 20*2 + 2
+const /* comment */ answer4 = 40 + 2
+const /* block comment */ answer5 // line comment
+  = 40 + 2
+const answer6 = 2+500_000/100_000*8-0
+const answer7 = --42
+const answer8 = +42
+const answer9 = 1<<6 + 128>>2 - 2*3
+const answer10 = 1042 % 1000
+const answer11 = 2 ^ 5 + 10
+
+const ponder = 40 + 2 == 42
+const ponder2 = 40 + 3 > 42 && 43 - 3 < 42
+const ponder3 = 43 >= 42 || 42 <= 42 && 40 <= 42
+const ponder4 = -42 != 42
+const ponder5 = (40 + 2) == 42
+

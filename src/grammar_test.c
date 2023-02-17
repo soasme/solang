@@ -10,9 +10,8 @@
         ParserState_Open(&state, (path)); \
         parser = soc_create(&state); \
         const int b = soc_parse(parser, &ret); \
-        printf("ret = %d, b = %d", ret, b);\
         TEST_ASSERT(ret == 0); \
-        TEST_ASSERT(b == 1); \
+        TEST_ASSERT(b == 0); \
     } else {\
         TEST_ASSERT((pass) == 0); \
     }\

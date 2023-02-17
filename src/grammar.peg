@@ -9,32 +9,63 @@
 #define PCC_MALLOC(auxil, size) ParserState_Malloc((auxil), (size))
 #define PCC_REALLOC(auxil, ptr, size) ParserState_Realloc((auxil), (ptr), (size))
 #define PCC_FREE(auxil, ptr) ParserState_Free((auxil), (ptr))
+// #define PCC_DEBUG(auxil, event, rule, level, pos, buffer, length) { static const char *dbg_str[] = { "Evaluating rule", "Matched rule", "Abandoning rule" }; fprintf(stderr, "%*s%s %s @%zu [%.*s]\n", (int)((level) * 2), "", dbg_str[event], rule, pos, (int)(length), buffer); }
 }
 
-prog <- _ import_decl* _ top_decl+
+prog <- _ import_decl* _ top_decl+ _
+
 import_decl <- IMPORT _ string_lit ~{
     ParserState_Raise((auxil), PARSER_ERR_NOTIMPORTMOD, Range_New($0s, $0e));
-} _ ident?
+} _ package_name?
+
+package_name <- ident
+
 top_decl <- decl _
+
 decl <- (const_decl ) 
+
 const_decl <- CONST _ ident ~{
     ParserState_Raise((auxil), PARSER_ERR_NOTCONST, Range_New($0s, $0e));
 } _ EQ _ expr
+
 ident <- !keywords L (L / D)*
-expr <- logical_or
+
+expr <- logical_or ~{
+    ParserState_Raise((auxil), PARSER_ERR_NOTEXPR, Range_New($0s, $0e));
+}
+
 logical_or <- logical_or _b PIPE2 _l logical_and
             / logical_and
+
 logical_and <- logical_and _b AMPERSAND2 _l comparison
              / comparison
+
 comparison <- comparison _b comparison_op _l addition
             / addition
+
 addition <- addition _b addition_op  _l multiplication
           / multiplication
+
 multiplication <- multiplication _b multiplication_op _l unary
                 / unary
+
 unary <- unary_op* primary
-primary <- int_lit / char_lit / string_lit / LPAREN _ expr _ RPAREN
+
+primary <- int_lit / char_lit / string_lit / LPAREN _ expr _ RPAREN / operand (arguments / selector / slice / index)*
+
 int_lit <- bin_lit / oct_lit / hex_lit / dec_lit
+
+operand <- package_name DOT method_name
+         / ident
+
+selector <- DOT _ ident
+index <- LBRACKET _ expr _ RBRACKET
+slice <- LBRACKET _ expr? _ COLON _ expr? _ RBRACKET
+arguments <- LPAREN _ expr_list _ RPAREN
+
+expr_list <- expr (_l COMMA _ expr)*
+
+method_name <- ident
 
 comparison_op <- "==" / "!=" / "<=" / "<" !("<" / "-") / ">=" / ">" !">"
 addition_op <- "+" !"+" / "-" !"-" / "|" !"|" / "^"
@@ -44,7 +75,7 @@ unary_op <- "+" / "-" / "!" / "^" / "*" / "&" / "<-"
 comment <- line_comment / block_comment
 line_comment <- SLASH2 (!NEWLINE .)* (NEWLINE / !.)
 block_comment <- SLASHASTERISK (!ASTERISKSLASH .)* ASTERISKSLASH
-_b <- (SPACE / TAB / block_comment)+
+_b <- (SPACE / TAB / block_comment)*
 _l <- (SPACE / TAB / comment)*
 _ <- (SPACE / TAB / NEWLINE / comment)*
 
@@ -84,10 +115,15 @@ uhex8_chr <- "\\U" hex_digit hex_digit hex_digit hex_digit hex_digit hex_digit h
 
 AMPERSAND2 <- "&&"
 ASTERISKSLASH <- "*/"
+COLON <- ":"
+COMMA <- ','
+DOT <- '.'
 EQ <- "=" !"="
+LBRACKET <- "["
 LPAREN <- "("
 NEWLINE <- '\n'
 PIPE2 <- "||"
+RBRACKET <- "]"
 RPAREN <- ")"
 SLASH2 <- "//"
 SLASHASTERISK <- "/*"

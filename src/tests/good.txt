@@ -1,3 +1,4 @@
+import "fmt"
 import "string"
 import "string" str
 
@@ -36,3 +37,8 @@ const ponder3 = 43 >= 42 || 42 <= 42 && 40 <= 42
 const ponder4 = -42 != 42
 const ponder5 = (40 + 2) == 42
 
+func MyFunc1(x int) int {
+    const y = x + 42
+    fmt.Println(x)
+    return y
+}

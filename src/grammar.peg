@@ -22,17 +22,36 @@ package_name <- ident
 
 top_decl <- decl _
 
-decl <- (const_decl ) 
+decl <- (const_decl / func_decl) 
 
 const_decl <- CONST _ ident ~{
     ParserState_Raise((auxil), PARSER_ERR_NOTCONST, Range_New($0s, $0e));
 } _ EQ _ expr
 
+func_decl <- FUNC _l func_name _l func_signature (_l func_body)?
+
+func_name <- ident
+func_signature <- func_params (_b result)?
+result <- type / func_params
+func_body <- block
+func_params <- LPAREN _ param_list? _ RPAREN
+param_list <- param_decl (_l COMMA _ param_decl)*
+param_decl <- ident_list _b type
+ident_list <- ident (_l COMMA _ ident)*
+
 ident <- !keywords L (L / D)*
 
-expr <- logical_or ~{
-    ParserState_Raise((auxil), PARSER_ERR_NOTEXPR, Range_New($0s, $0e));
-}
+type <- operand
+
+block <- LBRACE _ stmt_list _ RBRACE
+stmt_list <- (stmt (eol+ _ stmt)*)?
+stmt <- decl / block / return_stmt / simple_stmt
+return_stmt <- RETURN _ expr_list?
+simple_stmt <- expr_stmt
+expr_stmt <- expr
+eol <- _b (SEMICOLON / NEWLINE / !. / line_comment)
+
+expr <- logical_or
 
 logical_or <- logical_or _b PIPE2 _l logical_and
             / logical_and
@@ -119,12 +138,15 @@ COLON <- ":"
 COMMA <- ','
 DOT <- '.'
 EQ <- "=" !"="
+LBRACE <- "{"
 LBRACKET <- "["
 LPAREN <- "("
 NEWLINE <- '\n'
 PIPE2 <- "||"
+RBRACE <- "}"
 RBRACKET <- "]"
 RPAREN <- ")"
+SEMICOLON <- ";"
 SLASH2 <- "//"
 SLASHASTERISK <- "/*"
 SPACE <- ' '
@@ -137,6 +159,8 @@ ZEROX <- "0x" / "0X"
 L <- [a-zA-Z_]
 D <- [0-9]
 
-keywords <- CONST / IMPORT
+keywords <- CONST / FUNC / IMPORT / RETURN
 CONST <- "const" !(L/D)
+FUNC <- "func" !(L/D)
 IMPORT <- "import" !(L/D)
+RETURN <- "return" !(L/D)

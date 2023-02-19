@@ -42,3 +42,21 @@ func MyFunc1(x int) int {
     fmt.Println(x)
     return y
 }
+
+func MyFunc2(x int) int? {
+    if (x < 0) {
+        return error("x is negative")
+    }
+
+    if(x == 0) {
+        return 42
+    } else if (x == 1) {
+        return 43
+    }
+
+    if (x == 42) {
+        return error("x is 42")
+    } else {
+        return x + 42
+    }
+}

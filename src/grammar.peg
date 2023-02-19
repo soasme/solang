@@ -45,8 +45,9 @@ type <- operand
 
 block <- LBRACE _ stmt_list _ RBRACE
 stmt_list <- (stmt (eol+ _ stmt)*)?
-stmt <- decl / block / return_stmt / simple_stmt
+stmt <- decl / block / if_stmt / return_stmt / simple_stmt
 return_stmt <- RETURN _ expr_list?
+if_stmt <- IF _ LPAREN _ expr _ RPAREN _ block (_l ELSE _ (if_stmt / block))?
 simple_stmt <- expr_stmt
 expr_stmt <- expr
 eol <- _b (SEMICOLON / NEWLINE / !. / line_comment)
@@ -74,8 +75,8 @@ primary <- int_lit / char_lit / string_lit / LPAREN _ expr _ RPAREN / operand (a
 
 int_lit <- bin_lit / oct_lit / hex_lit / dec_lit
 
-operand <- package_name DOT method_name
-         / ident
+operand <- package_name DOT method_name QUESTION?
+         / ident QUESTION?
 
 selector <- DOT _ ident
 index <- LBRACKET _ expr _ RBRACKET
@@ -143,6 +144,7 @@ LBRACKET <- "["
 LPAREN <- "("
 NEWLINE <- '\n'
 PIPE2 <- "||"
+QUESTION <- "?"
 RBRACE <- "}"
 RBRACKET <- "]"
 RPAREN <- ")"
@@ -162,5 +164,7 @@ D <- [0-9]
 keywords <- CONST / FUNC / IMPORT / RETURN
 CONST <- "const" !(L/D)
 FUNC <- "func" !(L/D)
+IF <- "if" !(L/D)
+ELSE <- "else" !(L/D)
 IMPORT <- "import" !(L/D)
 RETURN <- "return" !(L/D)
